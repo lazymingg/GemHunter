@@ -33,7 +33,7 @@ def convert_int_to_pos(num: int, grid: List[List[str]]) -> Tuple[int, int]:
 def generate_trap_combinations(array: List[int], n: int) -> List[List[int]]:
     clauses = []
     for combo in combinations(array, n):
-        clause = list(combo) + [-v for v in array if v not in combo]
+        clause = list(combo)
         clauses.append(clause)
     return clauses
 
