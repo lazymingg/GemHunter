@@ -72,6 +72,17 @@ def checking_clause(clause: List[int], model: List[int]) -> bool:
             return True
     return False
 
+def is_conflict(cnf: List[List[int]], model: List[int]) -> bool:
+    for clause in cnf:
+        satisfied = False
+        for var in clause:
+            if (var > 0 and var in model) or (var < 0 and -var not in model):
+                satisfied = True
+                break
+        if not satisfied and all(abs(v) in [abs(m) for m in model] for v in clause):
+            return True
+    return False
+
 def checking_cnf(cnf: List[List[int]], model: List[int]) -> bool:
     return all(checking_clause(clause, model) for clause in cnf)
 
@@ -95,24 +106,28 @@ def backtracking_util(cnf: List[List[int]], model: List[int], all_vars: List[int
         model.pop()
     return []
 
-def is_conflict(cnf: List[List[int]], model: List[int]) -> bool:
-    for clause in cnf:
-        satisfied = False
-        for var in clause:
-            if (var > 0 and var in model) or (var < 0 and -var not in model):
-                satisfied = True
-                break
-        if not satisfied and all(abs(v) in [abs(m) for m in model] for v in clause):
-            return True
-    return False
 
 def solve_by_brute_force(cnf: List[List[int]]) -> List[int]:
-    all_vars = sorted(set(abs(v) for clause in cnf for v in clause))
-    n = len(all_vars)
-    for num in range(1 << n):
-        model = [all_vars[i] if (num >> i) & 1 else -all_vars[i] for i in range(n)]
+    all_vars = set()
+    for clause in cnf:
+        for var in clause:
+            all_vars.add(abs(var))
+    
+    sorted_vars = sorted(all_vars)
+    num_vars = len(sorted_vars)
+    
+    total_assignments = 1 << num_vars
+    for assignment in range(total_assignments):
+        model = []
+        for i in range(num_vars):
+            if (assignment >> i) & 1: 
+                model.append(sorted_vars[i])  
+            else:  
+                model.append(-sorted_vars[i])  
+        
         if checking_cnf(cnf, model):
-            return model
+            return model  
+    
     return None
 
 def solve_by_sat(cnf: List[List[int]]) -> List[int]:
@@ -167,6 +182,7 @@ def main():
         'backtracking': solve_by_backtracking,
         'brute': solve_by_brute_force
     }
+    
     solver = solvers[args.method]
 
     start_time = time.perf_counter()
