@@ -38,6 +38,7 @@ def convert_int_to_pos(num: int, grid: List[List[str]]) -> Tuple[int, int]:
 def generate_trap_combinations(array: List[int], n: int) -> List[List[int]]:
     clauses = []
     leng = len(array) - n + 1
+    
     for combo in combinations(array, leng):
         clauses.append(list(combo))
     k = n + 1
@@ -54,8 +55,11 @@ def generate_cnf(grid: List[List[str]]) -> List[List[int]]:
                 pos = (i, j)
                 neigh = get_neigh(pos, grid)
                 neigh_vars = [convert_pos_to_int(p, grid) for p in neigh]
-                trap_clauses = generate_trap_combinations(neigh_vars, int(grid[i][j]))
-                cnf.extend(trap_clauses)
+                if len(neigh_vars) - int(grid[i][j]) < 0:
+                    cnf.append([]) #cant solve
+                else:
+                    trap_clauses = generate_trap_combinations(neigh_vars, int(grid[i][j]))
+                    cnf.extend(trap_clauses)
     return cnf
 
 def checking_clause(clause: List[int], model: List[int]) -> bool:
