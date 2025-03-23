@@ -1,3 +1,4 @@
+import time
 from typing import List, Tuple
 from itertools import combinations
 from pysat.solvers import Solver
@@ -61,6 +62,7 @@ def generate_cnf(grid: List[List[str]]) -> List[List[int]]:
                     trap_clauses = generate_trap_combinations(neigh_vars, int(grid[i][j]))
                     cnf.extend(trap_clauses)
     return cnf
+    
 
 def checking_clause(clause: List[int], model: List[int]) -> bool:
     for var in clause:
@@ -73,11 +75,15 @@ def checking_clause(clause: List[int], model: List[int]) -> bool:
 def checking_cnf(cnf: List[List[int]], model: List[int]) -> bool:
     return all(checking_clause(clause, model) for clause in cnf)
 
-def backtracking_cnf(cnf: List[List[int]]) -> List[int]:
+def solve_by_backtracking(cnf: List[List[int]]) -> List[int]:
     all_vars = sorted(set(abs(var) for clause in cnf for var in clause))
     return backtracking_util(cnf, [], all_vars, 0)
 
+
 def backtracking_util(cnf: List[List[int]], model: List[int], all_vars: List[int], index: int) -> List[int]:
+    if is_conflict(cnf, model):
+        return []
+    
     if index == len(all_vars):
         return deepcopy(model) if checking_cnf(cnf, model) else []
     var = all_vars[index]
@@ -88,6 +94,17 @@ def backtracking_util(cnf: List[List[int]], model: List[int], all_vars: List[int
             return result
         model.pop()
     return []
+
+def is_conflict(cnf: List[List[int]], model: List[int]) -> bool:
+    for clause in cnf:
+        satisfied = False
+        for var in clause:
+            if (var > 0 and var in model) or (var < 0 and -var not in model):
+                satisfied = True
+                break
+        if not satisfied and all(abs(v) in [abs(m) for m in model] for v in clause):
+            return True
+    return False
 
 def solve_by_brute_force(cnf: List[List[int]]) -> List[int]:
     all_vars = sorted(set(abs(v) for clause in cnf for v in clause))
@@ -139,26 +156,31 @@ def main():
     
     args = parser.parse_args()
 
-    # Read input
     grid = read_input(args.input_file)
-    
-    # Generate CNF
+
+    start_time = time.perf_counter()
     cnf = generate_cnf(grid)
-    
-    # Select solving method
+    cnf_time = time.perf_counter() - start_time
+
     solvers = {
         'sat': solve_by_sat,
-        'backtracking': backtracking_cnf,
+        'backtracking': solve_by_backtracking,
         'brute': solve_by_brute_force
     }
-    
     solver = solvers[args.method]
+
+    start_time = time.perf_counter()
     result = solver(cnf)
+    solve_time = time.perf_counter() - start_time
+
     result_grid = get_grid_result(grid, result) if result else grid
-    
-    # Print to console
+
+    save_results(args.output, args.method, result_grid, result, grid)
+
     print(f"\nSolving with {args.method} method:")
-    print("Original Grid:")
+    print(f"Time to generate CNF: {cnf_time:.10f} seconds")
+    print(f"Time to solve CNF: {solve_time:.10f} seconds")
+    print("\nOriginal Grid:")
     for row in grid:
         print(' '.join(row))
     print("\nResult:")
@@ -170,10 +192,26 @@ def main():
             print(' '.join(row))
     else:
         print("UNSAT (unsatisfiable)")
+
+    with open(args.output, 'w', encoding='utf-8') as f:
+        f.write(f"Solving method: {args.method}\n\n")
+        f.write(f"Performance Metrics:\n")
+        f.write(f"Time to generate CNF: {cnf_time:.10f} seconds\n")
+        f.write(f"Time to solve CNF: {solve_time:.10f} seconds\n\n")
+        f.write("Original Grid:\n")
+        for row in grid:
+            f.write(' '.join(row) + '\n')
+        f.write("\nCNF Result:\n")
+        if result:
+            f.write("SAT (satisfiable)\n")
+            f.write(f"Model: {result}\n\n")
+            f.write("Result Grid:\n")
+            for row in result_grid:
+                f.write(' '.join(row) + '\n')
+        else:
+            f.write("UNSAT (unsatisfiable)\n")
     
-    # Save to file
-    save_results(args.output, args.method, result_grid, result, grid)
-    print(f"\nResults saved to {args.output}")
+    print(f"\nResults and performance metrics saved to {args.output}")
 
 if __name__ == "__main__":
     main()
