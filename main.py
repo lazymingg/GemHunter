@@ -255,7 +255,7 @@ def save_results(filename: str, method: str, grid: List[List[str]], result: List
         else:
             f.write("UNSAT (unsatisfiable)\n")
 
-
+#made by chatgpt
 def is_valid_filled_grid(grid: List[List[str]]) -> bool:
     n_rows, n_cols = len(grid), len(grid[0])
 
