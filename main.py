@@ -1,5 +1,5 @@
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Set
 from itertools import combinations
 from pysat.solvers import Solver
 from copy import deepcopy
@@ -23,6 +23,17 @@ def get_neigh(pos: Tuple[int, int], grid: List[List[str]]) -> List[Tuple[int, in
         x += di
         y += dj
         if 0 <= x < len(grid) and 0 <= y < len(grid[0]) and grid[x][y] == '_':
+            neigh.append((x, y))
+    return neigh
+
+def get_neigh_trap(pos: Tuple[int, int], grid: List[List[str]]) -> List[Tuple[int, int]]:
+    adjacent = [(0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (-1, -1), (1, -1), (-1, 1)]
+    neigh = []
+    for di, dj in adjacent:
+        x, y = pos
+        x += di
+        y += dj
+        if 0 <= x < len(grid) and 0 <= y < len(grid[0]) and grid[x][y] == 'T':
             neigh.append((x, y))
     return neigh
 
@@ -106,6 +117,100 @@ def backtracking_util(cnf: List[List[int]], model: List[int], all_vars: List[int
         model.pop()
     return []
 
+# unit clause heuristic and unit propagation
+def unit_propagation(cnf: List[List[int]], model: List[int]) -> Tuple[List[List[int]], List[int]]:
+    
+    changed = True
+    while changed:
+        changed = False
+        unit_clauses = [clause[0] for clause in cnf if len(clause) == 1] #fiding unit clauses
+
+        for unit in unit_clauses:
+            #if unit is already in model
+            if unit in model or -unit in model:
+                continue  
+            
+            #assigning the unit clause
+            model.append(unit)  
+            cnf = [clause for clause in cnf if unit not in clause]
+
+            # delete -unit from remaining clauses
+            for clause in cnf:
+                if -unit in clause:
+                    clause.remove(-unit)
+
+            #change flag to True
+            changed = True  
+
+    return cnf, model
+
+def pure_literal_elimination(cnf: List[List[int]], model: List[int]) -> Tuple[List[List[int]], List[int]]:
+    all_vars = set(abs(var) for clause in cnf for var in clause)
+    pure_literals = set()
+    all_literals = {lit for clause in cnf for lit in clause}
+
+    for var in all_vars:
+        if var in all_literals and -var not in all_literals:
+            pure_literals.add(var)
+        elif -var in all_literals and var not in all_literals:
+            pure_literals.add(-var)
+
+    for pure in pure_literals:
+        model.append(pure) 
+        cnf = [clause for clause in cnf if pure not in clause]
+
+    return cnf, model
+
+def choose_variable(cnf: List[List[int]]) -> int:
+    return abs(cnf[0][0])
+
+def dpll(cnf: List[List[int]], model: List[int]) -> List[int]:
+    cnf, model = unit_propagation(cnf, model) 
+    cnf, model = pure_literal_elimination(cnf, model) 
+
+    #if ALL cnf is empty mean all clauses are satisfied
+    if not cnf:
+        return model
+
+    #if clause is empty mean there is conflict
+    if any(len(clause) == 0 for clause in cnf):
+        return []
+
+    #choose variable
+    var = choose_variable(cnf)
+
+    
+    new_model = model + [var]
+    new_cnf = [clause for clause in cnf if var not in clause]
+    new_cnf = [[x for x in clause if x != -var] for clause in new_cnf]
+    result = dpll(new_cnf, new_model)
+    if result:
+        return result
+
+    new_model = model + [-var]
+    new_cnf = [clause for clause in cnf if -var not in clause]
+    new_cnf = [[x for x in clause if x != var] for clause in new_cnf]
+    return dpll(new_cnf, new_model)
+
+
+def solve_by_dpll(cnf: List[List[int]]) -> List[int]:
+    all_vars = set(abs(var) for clause in cnf for var in clause)
+    
+    max_var = max(all_vars) if all_vars else 0
+
+    assignment = dpll(cnf, [])
+
+    if assignment is None:
+        return []
+
+    assigned_vars = set(abs(var) for var in assignment)
+
+    for var in range(1, max_var + 1):
+        if var not in assigned_vars:
+            assignment.append(-var)
+
+    return assignment
+
 
 def solve_by_brute_force(cnf: List[List[int]]) -> List[int]:
     all_vars = set()
@@ -161,6 +266,59 @@ def save_results(filename: str, method: str, grid: List[List[str]], result: List
         else:
             f.write("UNSAT (unsatisfiable)\n")
 
+
+def is_valid_filled_grid(grid: List[List[str]]) -> bool:
+    """
+    Kiểm tra xem lưới đã điền 'T' (trap) và 'G' (gem) có hợp lệ không dựa trên các số trong lưới.
+    Mỗi số trong lưới biểu thị số lượng bẫy 'T' ở các ô liền kề (8 hướng).
+
+    Args:
+        grid (List[List[str]]): Lưới đã điền kết quả với các giá trị 'T', 'G', '_' hoặc số.
+
+    Returns:
+        bool: True nếu lưới hợp lệ, False nếu không hợp lệ.
+    """
+    n_rows, n_cols = len(grid), len(grid[0])
+
+    def count_traps_around(i: int, j: int) -> int:
+        """Đếm số bẫy 'T' xung quanh ô (i, j) trong 8 hướng liền kề."""
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0), 
+                     (1, 1), (-1, -1), (1, -1), (-1, 1)]
+        trap_count = 0
+        for di, dj in directions:
+            ni, nj = i + di, j + dj
+            if 0 <= ni < n_rows and 0 <= nj < n_cols:
+                if grid[ni][nj] == 'T':
+                    trap_count += 1
+        return trap_count
+
+    # Kiểm tra từng ô trong lưới
+    for i in range(n_rows):
+        for j in range(n_cols):
+            # Nếu ô chứa số
+            if grid[i][j].isdigit():
+                expected_traps = int(grid[i][j])
+                actual_traps = count_traps_around(i, j)
+                
+                # Nếu số bẫy thực tế không khớp với số trong ô
+                if actual_traps != expected_traps:
+                    print(f"⚠️ Lỗi tại ô ({i}, {j}): "
+                          f"Cần {expected_traps} bẫy nhưng tìm thấy {actual_traps}")
+                    return False
+            # Nếu ô không phải số, không phải '_', không phải 'T' hoặc 'G'
+            elif grid[i][j] not in ['_', 'T', 'G']:
+                print(f"⚠️ Giá trị không hợp lệ tại ô ({i}, {j}): {grid[i][j]}")
+                return False
+
+    # Kiểm tra xem tất cả các ô '_' đã được điền chưa
+    for i in range(n_rows):
+        for j in range(n_cols):
+            if grid[i][j] == '_':
+                print(f"⚠️ Ô ({i}, {j}) chưa được điền!")
+                return False
+
+    print("✅ Lưới hợp lệ!")
+    return True
 def main():
     parser = argparse.ArgumentParser(description="Solve grid puzzle with different methods")
     parser.add_argument('input_file', help="Input file path")
@@ -179,10 +337,10 @@ def main():
 
     solvers = {
         'sat': solve_by_sat,
-        'backtracking': solve_by_backtracking,
+        'backtracking': solve_by_dpll,
         'brute': solve_by_brute_force
     }
-    
+
     solver = solvers[args.method]
 
     start_time = time.perf_counter()
@@ -190,6 +348,9 @@ def main():
     solve_time = time.perf_counter() - start_time
 
     result_grid = get_grid_result(grid, result) if result else grid
+
+    if is_valid_filled_grid(result_grid):
+        print("Kết quả hợp lệ!")
 
     save_results(args.output, args.method, result_grid, result, grid)
 
