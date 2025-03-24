@@ -26,17 +26,6 @@ def get_neigh(pos: Tuple[int, int], grid: List[List[str]]) -> List[Tuple[int, in
             neigh.append((x, y))
     return neigh
 
-def get_neigh_trap(pos: Tuple[int, int], grid: List[List[str]]) -> List[Tuple[int, int]]:
-    adjacent = [(0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (-1, -1), (1, -1), (-1, 1)]
-    neigh = []
-    for di, dj in adjacent:
-        x, y = pos
-        x += di
-        y += dj
-        if 0 <= x < len(grid) and 0 <= y < len(grid[0]) and grid[x][y] == 'T':
-            neigh.append((x, y))
-    return neigh
-
 def convert_pos_to_int(pos: Tuple[int, int], grid: List[List[str]]) -> int:
     x, y = pos
     return x * len(grid[0]) + y + 1
@@ -268,20 +257,10 @@ def save_results(filename: str, method: str, grid: List[List[str]], result: List
 
 
 def is_valid_filled_grid(grid: List[List[str]]) -> bool:
-    """
-    Kiểm tra xem lưới đã điền 'T' (trap) và 'G' (gem) có hợp lệ không dựa trên các số trong lưới.
-    Mỗi số trong lưới biểu thị số lượng bẫy 'T' ở các ô liền kề (8 hướng).
-
-    Args:
-        grid (List[List[str]]): Lưới đã điền kết quả với các giá trị 'T', 'G', '_' hoặc số.
-
-    Returns:
-        bool: True nếu lưới hợp lệ, False nếu không hợp lệ.
-    """
     n_rows, n_cols = len(grid), len(grid[0])
 
     def count_traps_around(i: int, j: int) -> int:
-        """Đếm số bẫy 'T' xung quanh ô (i, j) trong 8 hướng liền kề."""
+
         directions = [(0, 1), (0, -1), (1, 0), (-1, 0), 
                      (1, 1), (-1, -1), (1, -1), (-1, 1)]
         trap_count = 0
@@ -292,25 +271,20 @@ def is_valid_filled_grid(grid: List[List[str]]) -> bool:
                     trap_count += 1
         return trap_count
 
-    # Kiểm tra từng ô trong lưới
     for i in range(n_rows):
         for j in range(n_cols):
-            # Nếu ô chứa số
             if grid[i][j].isdigit():
                 expected_traps = int(grid[i][j])
                 actual_traps = count_traps_around(i, j)
                 
-                # Nếu số bẫy thực tế không khớp với số trong ô
                 if actual_traps != expected_traps:
                     print(f"⚠️ Lỗi tại ô ({i}, {j}): "
                           f"Cần {expected_traps} bẫy nhưng tìm thấy {actual_traps}")
                     return False
-            # Nếu ô không phải số, không phải '_', không phải 'T' hoặc 'G'
             elif grid[i][j] not in ['_', 'T', 'G']:
                 print(f"⚠️ Giá trị không hợp lệ tại ô ({i}, {j}): {grid[i][j]}")
                 return False
 
-    # Kiểm tra xem tất cả các ô '_' đã được điền chưa
     for i in range(n_rows):
         for j in range(n_cols):
             if grid[i][j] == '_':
@@ -319,6 +293,7 @@ def is_valid_filled_grid(grid: List[List[str]]) -> bool:
 
     print("✅ Lưới hợp lệ!")
     return True
+
 def main():
     parser = argparse.ArgumentParser(description="Solve grid puzzle with different methods")
     parser.add_argument('input_file', help="Input file path")
