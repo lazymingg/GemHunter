@@ -1,8 +1,8 @@
 Solving method: backtracking
 
 Performance Metrics:
-Time to generate CNF: 0.0006629000 seconds
-Time to solve CNF: 0.0032939999 seconds
+Time to generate CNF: 0.0011042000 seconds
+Time to solve CNF: 0.0033229999 seconds
 
 Original Grid:
 1,2,_,_,1,2,_,2,1,2,2,2,1,2,3,_,_,_,2,1
