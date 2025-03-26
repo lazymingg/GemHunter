@@ -1,0 +1,19 @@
+Solving method: brute
+
+Performance Metrics:
+Time to generate CNF: 0.0000847999 seconds
+Time to solve CNF: 0.0000757000 seconds
+
+Original Grid:
+3,_,2,_
+_,_,2,_
+_,3,1,_
+
+CNF Result:
+SAT (satisfiable)
+Model: [2, -4, 5, 6, -8, 9, -12]
+
+Result Grid:
+3,T,2,G
+T,T,2,G
+T,3,1,G

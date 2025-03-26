@@ -4,6 +4,11 @@ from itertools import combinations
 from pysat.solvers import Solver
 from copy import deepcopy
 import argparse
+import random
+from collections import Counter
+
+
+
 import sys
 
 def read_input(file_path: str) -> List[List[str]]:
@@ -86,26 +91,6 @@ def is_conflict(cnf: List[List[int]], model: List[int]) -> bool:
 def checking_cnf(cnf: List[List[int]], model: List[int]) -> bool:
     return all(checking_clause(clause, model) for clause in cnf)
 
-def solve_by_backtracking(cnf: List[List[int]]) -> List[int]:
-    all_vars = sorted(set(abs(var) for clause in cnf for var in clause))
-    return backtracking_util(cnf, [], all_vars, 0)
-
-
-def backtracking_util(cnf: List[List[int]], model: List[int], all_vars: List[int], index: int) -> List[int]:
-    if is_conflict(cnf, model):
-        return []
-    
-    if index == len(all_vars):
-        return deepcopy(model) if checking_cnf(cnf, model) else []
-    var = all_vars[index]
-    for value in [var, -var]:
-        model.append(value)
-        result = backtracking_util(cnf, model, all_vars, index + 1)
-        if result:
-            return result
-        model.pop()
-    return []
-
 # unit clause heuristic and unit propagation
 def unit_propagation(cnf: List[List[int]], model: List[int]) -> Tuple[List[List[int]], List[int]]:
     
@@ -150,8 +135,12 @@ def pure_literal_elimination(cnf: List[List[int]], model: List[int]) -> Tuple[Li
 
     return cnf, model
 
-def choose_variable(cnf: List[List[int]]) -> int:
-    return abs(cnf[0][0])
+# def choose_variable(cnf: List[List[int]]) -> int:
+#     return abs(cnf[0][0])
+def choose_variable(cnf):
+    flat = [abs(var) for clause in cnf for var in clause]
+    counter = Counter(flat)
+    return counter.most_common(1)[0][0]
 
 def dpll(cnf: List[List[int]], model: List[int]) -> List[int]:
     cnf, model = unit_propagation(cnf, model) 
@@ -224,6 +213,8 @@ def solve_by_brute_force(cnf: List[List[int]]) -> List[int]:
     
     return None
 
+
+
 def solve_by_sat(cnf: List[List[int]]) -> List[int]:
     solver = Solver(name='glucose3')
     for clause in cnf:
@@ -238,22 +229,6 @@ def get_grid_result(grid: List[List[str]], result: List[int]) -> List[List[str]]
         if new_grid[x][y] == '_':
             new_grid[x][y] = temp
     return new_grid
-
-def save_results(filename: str, method: str, grid: List[List[str]], result: List[int], original_grid: List[List[str]]):
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.write(f"Solving method: {method}\n\n")
-        f.write("Original Grid:\n")
-        for row in original_grid:
-            f.write(' '.join(row) + '\n')
-        f.write("\nCNF Result:\n")
-        if result:
-            f.write("SAT (satisfiable)\n")
-            f.write(f"Model: {result}\n\n")
-            f.write("Result Grid:\n")
-            for row in grid:
-                f.write(' '.join(row) + '\n')
-        else:
-            f.write("UNSAT (unsatisfiable)\n")
 
 #made by chatgpt
 def is_valid_filled_grid(grid: List[List[str]]) -> bool:
@@ -278,21 +253,142 @@ def is_valid_filled_grid(grid: List[List[str]]) -> bool:
                 actual_traps = count_traps_around(i, j)
                 
                 if actual_traps != expected_traps:
-                    print(f"⚠️ Lỗi tại ô ({i}, {j}): "
-                          f"Cần {expected_traps} bẫy nhưng tìm thấy {actual_traps}")
+                    print(f"errors at cell ({i}, {j}): "
+                          f"Need {expected_traps} trap but found {actual_traps}")
                     return False
             elif grid[i][j] not in ['_', 'T', 'G']:
-                print(f"⚠️ Giá trị không hợp lệ tại ô ({i}, {j}): {grid[i][j]}")
+                print(f"unvalid value in cell ({i}, {j}): {grid[i][j]}")
                 return False
 
-    for i in range(n_rows):
-        for j in range(n_cols):
-            if grid[i][j] == '_':
-                print(f"⚠️ Ô ({i}, {j}) chưa được điền!")
-                return False
+    # for i in range(n_rows):
+    #     for j in range(n_cols):
+    #         if grid[i][j] == '_':
+    #             print(f" cell ({i}, {j}) not filled!")
+    #             return False
 
-    print("✅ Lưới hợp lệ!")
+    print("All cells are filled correctly!")
     return True
+
+def generate_random_grid(rows: int, cols: int) -> List[List[str]]:
+    grid = [['_' for _ in range(cols)] for _ in range(rows)]
+    
+    num_cells = rows * cols
+    #place traps (T and G)
+    trap_positions = random.sample(range(num_cells), num_cells)
+    for pos in trap_positions:
+        x = pos // cols
+        y = pos % cols
+        grid[x][y] = random.choice(['G', 'T', 'N', 'N'])
+    
+    # print(grid)
+
+    # Update numbers based on traps around
+    directions = [(0, 1), (0, -1), (1, 0), (-1, 0), 
+                  (1, 1), (-1, -1), (1, -1), (-1, 1)]
+    
+
+    for i in range(rows):
+        for j in range(cols):
+            if grid[i][j] == 'N':
+                grid[i][j] = '0'
+                for di, dj in directions:
+                    ni, nj = i + di, j + dj
+                    if 0 <= ni < rows and 0 <= nj < cols:
+                        if grid[ni][nj] == 'T':
+                            grid[i][j] = str(int(grid[i][j]) + 1)
+
+    #remove all t g
+    for i in range(rows):
+        for j in range(cols):
+            if grid[i][j] == 'T' or grid[i][j] == 'G' or grid[i][j] == '0':
+                grid[i][j] = '_'
+
+    return grid
+
+def run_experiment():
+    sizes = [(5, 5), (11, 11), (20, 20), (30, 30)]
+    trials = 10
+    method = solve_by_sat
+    # method = solve_by_dpll
+    # method = solve_by_brute_force
+    output_file = "experiment_results.txt"
+
+    with open(output_file, 'w', encoding='utf-8') as f:
+        for rows, cols in sizes:
+            total_time = 0.0
+            success_count = 0
+
+            header = f"\n=== Running {trials} trials for grid size {rows}x{cols} ===\nUsing {method.__name__} method\n"
+            print(header)
+            f.write(header)
+
+            for i in range(trials):
+                grid = generate_random_grid(rows, cols)
+                cnf = generate_cnf(grid)
+
+                grid_str = "\n".join(', '.join(row) for row in grid)
+                print("Solving grid:")
+                print(grid_str)
+                f.write(f"\nGrid {i+1}:\n{grid_str}\n")
+
+                start_time = time.perf_counter()
+                result = method(cnf)
+                solve_time = time.perf_counter() - start_time
+                total_time += solve_time
+
+                result_grid = get_grid_result(grid, result) if result else grid
+                is_valid = is_valid_filled_grid(result_grid)
+                if is_valid:
+                    success_count += 1
+
+                trial_log = f"Trial {i+1}: {'SAT' if result else 'UNSAT'} | Time: {solve_time:.5f}s | Valid: {is_valid}\n"
+                print(trial_log)
+                f.write(trial_log)
+
+            avg_time = total_time / trials
+            summary = f"\n✅ Average solving time for {rows}x{cols}: {avg_time:.5f} seconds\n Valid solutions: {success_count}/{trials}\n"
+            print(summary)
+            f.write(summary)
+
+#print results to screen
+def print_results(method, cnf_time, solve_time, grid, result, result_grid, output_path):
+    print(f"\nSolving with {method} method:")
+    print(f"Time to generate CNF: {cnf_time:.10f} seconds")
+    print(f"Time to solve CNF: {solve_time:.10f} seconds")
+    print("\nOriginal Grid:")
+    for row in grid:
+        print(','.join(row))
+    print("\nResult:")
+    if result:
+        print("SAT (satisfiable)")
+        print(f"Model: {result}")
+        print("Result Grid:")
+        for row in result_grid:
+            print(' '.join(row))
+    else:
+        print("UNSAT (unsatisfiable)")
+    print(f"\nResults and performance metrics saved to {output_path}")
+
+#write results to file
+def write_results_to_file(output_path, method, cnf_time, solve_time, grid, result, result_grid):
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(f"Solving method: {method}\n\n")
+        f.write(f"Performance Metrics:\n")
+        f.write(f"Time to generate CNF: {cnf_time:.10f} seconds\n")
+        f.write(f"Time to solve CNF: {solve_time:.10f} seconds\n\n")
+        f.write("Original Grid:\n")
+        for row in grid:
+            f.write(','.join(row) + '\n')
+        f.write("\nCNF Result:\n")
+        if result:
+            f.write("SAT (satisfiable)\n")
+            f.write(f"Model: {result}\n\n")
+            f.write("Result Grid:\n")
+            for row in result_grid:
+                f.write(','.join(row) + '\n')
+        else:
+            f.write("UNSAT (unsatisfiable)\n")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Solve grid puzzle with different methods")
@@ -301,7 +397,8 @@ def main():
                        default='sat', help="Solving method (default: sat)")
     parser.add_argument('--output', default='result.txt', 
                        help="Output file path (default: result.txt)")
-    
+    parser.add_argument('--random', action='store_true', help="Generate random grid")
+
     args = parser.parse_args()
 
     grid = read_input(args.input_file)
@@ -325,45 +422,14 @@ def main():
     result_grid = get_grid_result(grid, result) if result else grid
 
     if is_valid_filled_grid(result_grid):
-        print("Kết quả hợp lệ!")
+        print("valid grid!!")
 
-    save_results(args.output, args.method, result_grid, result, grid)
-
-    print(f"\nSolving with {args.method} method:")
-    print(f"Time to generate CNF: {cnf_time:.10f} seconds")
-    print(f"Time to solve CNF: {solve_time:.10f} seconds")
-    print("\nOriginal Grid:")
-    for row in grid:
-        print(' '.join(row))
-    print("\nResult:")
-    if result:
-        print("SAT (satisfiable)")
-        print(f"Model: {result}")
-        print("Result Grid:")
-        for row in result_grid:
-            print(' '.join(row))
-    else:
-        print("UNSAT (unsatisfiable)")
-
-    with open(args.output, 'w', encoding='utf-8') as f:
-        f.write(f"Solving method: {args.method}\n\n")
-        f.write(f"Performance Metrics:\n")
-        f.write(f"Time to generate CNF: {cnf_time:.10f} seconds\n")
-        f.write(f"Time to solve CNF: {solve_time:.10f} seconds\n\n")
-        f.write("Original Grid:\n")
-        for row in grid:
-            f.write(' '.join(row) + '\n')
-        f.write("\nCNF Result:\n")
-        if result:
-            f.write("SAT (satisfiable)\n")
-            f.write(f"Model: {result}\n\n")
-            f.write("Result Grid:\n")
-            for row in result_grid:
-                f.write(' '.join(row) + '\n')
-        else:
-            f.write("UNSAT (unsatisfiable)\n")
+    print_results(args.method, cnf_time, solve_time, grid, result, result_grid, args.output)
+    write_results_to_file(args.output, args.method, cnf_time, solve_time, grid, result, result_grid)
     
-    print(f"\nResults and performance metrics saved to {args.output}")
+    
+    #comment all code and uncomment this to run experiment
+    # run_experiment()
 
 if __name__ == "__main__":
     main()
